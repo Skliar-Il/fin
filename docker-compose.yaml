@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: finance_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-finance_app_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-strong_password_here}
+      POSTGRES_DB: ${DB_NAME:-finance}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-finance_app_user} -d ${DB_NAME:-finance}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - finance_network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: finance_app
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-finance_app_user}
+      DB_PASSWORD: ${DB_PASSWORD:-strong_password_here}
+      DB_NAME: ${DB_NAME:-finance}
+      DB_SCHEMA: ${DB_SCHEMA:-finance}
+      APP_TITLE: ${APP_TITLE:-Finance API}
+      APP_VERSION: ${APP_VERSION:-1.0.0}
+      DEBUG: ${DEBUG:-False}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - finance_network
+    volumes:
+      - ./src:/app/src
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  finance_network:
+    driver: bridge
+
